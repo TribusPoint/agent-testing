@@ -38,13 +38,32 @@ export async function generatePersonas(options: GeneratePersonasOptions): Promis
     `Common user needs: ${analysis.commonUserNeeds.join(", ")}`,
   ].join("\n");
 
-  const { text } = await generateText({
-    model: getOpenAI(apiKey)(model),
-    system: `You generate DIVERSE test personas (testers) for chatbot testing on a specific website.
+  const allPersonas: Persona[] = [];
+  const seenNames = new Set<string>();
+  const BATCH = 10;
+  const maxRounds = Math.ceil(count / BATCH) + 3;
+
+  for (let round = 0; round < maxRounds && allPersonas.length < count; round++) {
+    const remaining = count - allPersonas.length;
+    const batchSize = Math.min(remaining, BATCH);
+    const approxTokens = Math.min(16000, 300 + batchSize * 120);
+
+    if (round > 0) onLog?.(`Got ${allPersonas.length}/${count} testers so far — requesting ${batchSize} more...`);
+
+    const existingNames = allPersonas.map((p) => p.name);
+    const avoidClause = existingNames.length
+      ? `\nDo NOT reuse any of these names or archetypes already created:\n${existingNames.map((n) => `  - ${n}`).join("\n")}`
+      : "";
+
+    try {
+      const { text } = await generateText({
+        model: getOpenAI(apiKey)(model),
+        system: `You generate DIVERSE test personas (testers) for chatbot testing on a specific website.
 
 CRITICAL RULES:
-1. Every tester MUST be completely different from the others — different persona, different goal, different personality, different knowledge level.
+1. Every tester MUST be completely different — different persona, different goal, different personality, different knowledge level.
 2. Draw from the site's target audience, services, and common user needs to make testers realistic.
+3. Return EXACTLY ${batchSize} testers. Count them before returning.
 
 DIVERSITY REQUIREMENTS — assign from these pools, making sure NO TWO testers share the same combination:
 
@@ -53,41 +72,43 @@ Personalities (pick different ones): "Formal and professional", "Casual and frie
 Knowledge levels (spread across): "Beginner", "Moderate", "Expert"
 
 Personas: pick from the site's target audience list, each tester a DIFFERENT audience type.
+${avoidClause}
 
-Return a JSON array of ${count} testers. Each object:
-{
-  "name": "a realistic full name",
-  "persona": "specific persona drawn from site's audience",
-  "goal": "one clear sentence about what they want to accomplish",
-  "personality": "communication style from the personality pool above",
-  "knowledgeLevel": "Beginner or Moderate or Expert"
-}
+Return a JSON array of EXACTLY ${batchSize} testers. Each object:
+{"name": "a realistic full name", "persona": "specific persona drawn from site's audience", "goal": "one clear sentence about what they want to accomplish", "personality": "communication style from the personality pool above", "knowledgeLevel": "Beginner or Moderate or Expert"}
 
 Return ONLY valid JSON array. No markdown. No explanation.`,
-    prompt: analysisContext,
-    maxOutputTokens: 1500,
-    temperature: 0.85,
-  });
+        prompt: analysisContext,
+        maxOutputTokens: approxTokens,
+        temperature: 0.85 + round * 0.03,
+      });
 
-  try {
-    const cleaned = text.replace(/```json?\s*|\s*```/g, "").trim();
-    const parsed = JSON.parse(cleaned) as Array<Record<string, unknown>>;
-    if (!Array.isArray(parsed)) throw new Error("Not an array");
+      const cleaned = text.replace(/```json?\s*|\s*```/g, "").trim();
+      const parsed = JSON.parse(cleaned) as Array<Record<string, unknown>>;
+      if (!Array.isArray(parsed)) continue;
 
-    const personas: Persona[] = parsed.slice(0, count).map((p) => ({
-      id: crypto.randomUUID(),
-      name: String(p.name || "Unnamed"),
-      persona: String(p.persona || "Visitor"),
-      goal: String(p.goal || "General inquiry"),
-      personality: String(p.personality || "Neutral"),
-      knowledgeLevel: String(p.knowledgeLevel || "Beginner"),
-      questions: [],
-    }));
+      for (const p of parsed) {
+        if (allPersonas.length >= count) break;
+        const name = String(p.name || "").trim();
+        if (!name || seenNames.has(name.toLowerCase())) continue;
+        seenNames.add(name.toLowerCase());
+        allPersonas.push({
+          id: crypto.randomUUID(),
+          name,
+          persona: String(p.persona || "Visitor"),
+          goal: String(p.goal || "General inquiry"),
+          personality: String(p.personality || "Neutral"),
+          knowledgeLevel: String(p.knowledgeLevel || "Beginner"),
+          questions: [],
+        });
+      }
+    } catch {
+      onLog?.(`Round ${round + 1}: failed to parse testers from LLM.`);
+    }
+  }
 
-    onLog?.(`Generated ${personas.length} testers.`);
-    return personas;
-  } catch {
-    onLog?.("Failed to parse testers from OpenAI, returning defaults.");
+  if (!allPersonas.length) {
+    onLog?.("All attempts failed, returning defaults.");
     return Array.from({ length: count }, (_, i) => ({
       id: crypto.randomUUID(),
       name: `Tester ${i + 1}`,
@@ -98,4 +119,7 @@ Return ONLY valid JSON array. No markdown. No explanation.`,
       questions: [],
     }));
   }
+
+  onLog?.(`Generated ${allPersonas.length} testers.`);
+  return allPersonas;
 }
