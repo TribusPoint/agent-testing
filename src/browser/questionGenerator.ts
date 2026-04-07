@@ -43,7 +43,7 @@ export async function generateQuestions(opts: {
     return [];
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!apiKey && !process.env.OPENAI_API_KEY) {
     onLog?.("No OpenAI key — generating placeholder questions.");
     const p = personas[0];
     return [

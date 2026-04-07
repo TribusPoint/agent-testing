@@ -97,7 +97,7 @@ export async function analyzeSite(options: AnalyzeSiteOptions): Promise<SiteAnal
     await browser.close();
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!apiKey && !process.env.OPENAI_API_KEY) {
     onLog?.("No OpenAI key — returning basic analysis from page metadata.");
     const hostname = new URL(url).hostname.replace(/^www\./, "");
     return {
