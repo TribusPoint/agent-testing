@@ -1,0 +1,7 @@
+node_modules
+dist
+data
+.env
+*.plan.md
+.cursor
+.git

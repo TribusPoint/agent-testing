@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Choose UI variant</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        background: #0f1219;
+        color: #e8ecf4;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+      }
+      .card {
+        border: 1px solid #2a3344;
+        border-radius: 10px;
+        padding: 1.5rem 1.75rem;
+        background: #171c26;
+        max-width: 22rem;
+        width: 100%;
+      }
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.1rem;
+      }
+      p {
+        margin: 0 0 1rem;
+        font-size: 0.85rem;
+        color: #8b95a8;
+      }
+      label {
+        display: block;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8b95a8;
+        margin-bottom: 0.35rem;
+      }
+      select {
+        width: 100%;
+        padding: 0.55rem 0.65rem;
+        border-radius: 8px;
+        border: 1px solid #2a3344;
+        background: #0f1219;
+        color: #e8ecf4;
+        font-size: 1rem;
+        margin-bottom: 1rem;
+      }
+      button {
+        width: 100%;
+        padding: 0.6rem;
+        border: none;
+        border-radius: 8px;
+        background: #6c9eff;
+        color: #0a0c10;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover {
+        filter: brightness(1.08);
+      }
+      .hint {
+        margin-top: 1rem;
+        font-size: 0.75rem;
+        color: #6b7488;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Choose UI</h1>
+      <p>Open the static shell for the variant you want to work on.</p>
+      <label for="ui-variant">UI folder</label>
+      <select id="ui-variant" aria-label="UI variant">
+        <option value="ui3">ui3 — main</option>
+        <option value="ui4">ui4 — development</option>
+        <option value="ui5">ui5 — sidebar layout</option>
+      </select>
+      <button type="button" id="go">Open</button>
+      <p class="hint">
+        Serve the repo root (e.g. <code>npx serve .</code>) so paths resolve. Add
+        new folders (e.g. <code>ui4/</code>) and extend the &lt;select&gt; when you add more variants.
+      </p>
+    </div>
+    <script>
+      const select = document.getElementById("ui-variant");
+      const go = document.getElementById("go");
+      go.addEventListener("click", () => {
+        const folder = select.value;
+        window.location.href = "./" + folder + "/index.html";
+      });
+    </script>
+  </body>
+</html>

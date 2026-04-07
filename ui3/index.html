@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Testing</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <button id="btn-back" class="back hidden" type="button">&larr;</button>
+    <div class="brand" id="header-title">Agent Testing</div>
+    <a href="/choose-ui.html" class="switch-link">Switch UI</a>
+  </header>
+
+  <!-- ═══════ HOME ═══════ -->
+  <main id="view-home" class="view">
+    <div class="home-header">
+      <h1>Your Tests</h1>
+      <button id="btn-new-test" class="primary" type="button">+ New Test</button>
+    </div>
+
+    <div id="new-test-form" class="card form-card hidden">
+      <h2>Create a new test</h2>
+      <form id="create-test-form">
+        <label>Site URL <input name="url" type="text" required placeholder="https://example.com" /></label>
+        <label>Name (optional) <input name="name" type="text" placeholder="Auto-detected from site" /></label>
+        <label>Launcher CSS selector (optional) <input name="launcherSelector" type="text" placeholder="e.g. #chat-button" /></label>
+        <label>Input CSS selector (optional) <input name="inputSelector" type="text" placeholder="e.g. textarea.chat-input" /></label>
+        <div class="row">
+          <button type="submit" class="primary">Create</button>
+          <button type="button" id="cancel-new-test" class="secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <ul id="tests-list" class="tests-list"></ul>
+  </main>
+
+  <!-- ═══════ TEST DETAIL ═══════ -->
+  <main id="view-test" class="view hidden">
+    <nav class="tabs">
+      <button type="button" class="tab active" data-tab="analysis">Analysis</button>
+      <button type="button" class="tab" data-tab="personasDims">Personas &amp; Dimensions</button>
+      <button type="button" class="tab" data-tab="questions">Questions</button>
+      <button type="button" class="tab" data-tab="runs">Auto Runs</button>
+      <button type="button" class="tab" data-tab="reports">Reports</button>
+      <button type="button" class="tab" data-tab="manual">Manual Chat</button>
+    </nav>
+
+    <!-- ── Analysis tab ── -->
+    <section id="tab-analysis" class="tab-panel">
+      <div id="analysis-dashboard"></div>
+      <p id="analysis-status" class="status"></p>
+    </section>
+
+    <!-- ── Personas & Dimensions tab ── -->
+    <section id="tab-personasDims" class="tab-panel hidden">
+      <div id="persona-guard" class="empty hidden">
+        No site analysis yet. Go to the <a href="#" id="link-to-analysis" class="accent-link">Analysis tab</a> first.
+      </div>
+      <div id="pd-dashboard"></div>
+      <p id="persona-status" class="status"></p>
+      <p id="dims-status" class="status"></p>
+
+    </section>
+
+    <!-- ── Questions tab ── -->
+    <section id="tab-questions" class="tab-panel hidden">
+      <div id="questions-dashboard"></div>
+      <p id="pq-status" class="status"></p>
+      <p id="sq-status" class="status"></p>
+    </section>
+
+    <!-- ── Auto Runs tab ── -->
+    <section id="tab-runs" class="tab-panel hidden">
+      <div class="runs-layout">
+        <div class="runs-left">
+          <h3>Test run</h3>
+          <p id="matrix-info" class="muted" style="font-size:.76rem;margin-bottom:.4rem">Runs every matching question from the Questions tab through the chatbot with evaluation.</p>
+          <div class="matrix-filters">
+            <div class="row">
+              <label class="inline-label">Persona
+                <select id="matrix-filter-persona"><option value="">All</option></select>
+              </label>
+              <label class="inline-label">Dimension
+                <select id="matrix-filter-dim"><option value="">All</option></select>
+              </label>
+              <label class="inline-label">Profile
+                <select id="matrix-filter-profile"><option value="">All</option></select>
+              </label>
+            </div>
+          </div>
+          <div class="row" style="margin-top:.4rem">
+            <label class="inline-label"><input id="matrix-show-browser" type="checkbox" /> Show browser</label>
+          </div>
+          <button id="btn-matrix-run" class="primary" type="button" disabled>Run All Questions</button>
+
+          <h3 style="margin-top:1rem">Run History</h3>
+          <div id="run-history" class="rh-container"></div>
+        </div>
+        <div class="runs-right">
+          <div class="stream activity-stream">
+            <div class="stream-header">
+              <h3>Activity</h3>
+              <span id="activity-counter" class="stream-badge">0</span>
+            </div>
+            <div id="run-activity" class="activity-feed"></div>
+          </div>
+          <div class="stream">
+            <div class="stream-header"><h3>Conversation</h3></div>
+            <div id="run-transcript" class="transcript"></div>
+          </div>
+
+          <div id="run-results-section" class="hidden">
+            <h3 class="section-title">Results</h3>
+            <div id="run-results-cards" class="score-cards-row"></div>
+            <div class="table-wrap">
+              <table class="data-table results-table">
+                <thead><tr><th>Question</th><th>Response</th><th>Follow-ups</th><th>Latency</th><th>Score</th><th>Notes</th></tr></thead>
+                <tbody id="run-results-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <p id="run-status" class="status"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Reports tab ── -->
+    <section id="tab-reports" class="tab-panel hidden">
+      <div class="reports-header">
+        <h2>Reports & Analytics</h2>
+      </div>
+
+      <div class="reports-controls row">
+        <label class="inline-label">Select run
+          <select id="report-run-select"><option value="">Choose a completed run...</option></select>
+        </label>
+        <button id="btn-export-csv" class="secondary" type="button" disabled>Export CSV</button>
+      </div>
+
+      <div id="report-summary" class="score-cards-row hidden"></div>
+
+      <div id="report-chart-section" class="hidden">
+        <h3 class="section-title">Score Distribution</h3>
+        <div id="score-chart" class="bar-chart"></div>
+      </div>
+
+      <div id="report-results-section" class="hidden">
+        <h3 class="section-title">Detailed Results</h3>
+        <div class="table-wrap">
+          <table class="data-table results-table">
+            <thead><tr><th>Question</th><th>Response</th><th>Follow-ups</th><th>Latency</th><th>AI Score</th><th>Notes</th><th>Human Score</th><th>Human Notes</th><th></th></tr></thead>
+            <tbody id="report-results-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="compare-section">
+        <h3 class="section-title">Run Comparison</h3>
+        <div class="row">
+          <label class="inline-label">Run A <select id="compare-a"><option value="">Select...</option></select></label>
+          <label class="inline-label">Run B <select id="compare-b"><option value="">Select...</option></select></label>
+          <button id="btn-compare" class="primary" type="button" disabled>Compare</button>
+        </div>
+        <div id="compare-results" class="hidden">
+          <div id="compare-summary" class="score-cards-row"></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Question</th><th>Score A</th><th>Score B</th><th>Delta</th></tr></thead>
+              <tbody id="compare-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Manual Chat tab ── -->
+    <section id="tab-manual" class="tab-panel hidden">
+      <div class="manual-layout">
+        <div class="manual-controls">
+          <div class="row">
+            <button id="btn-manual-connect" class="primary" type="button">Connect</button>
+            <button id="btn-manual-disconnect" class="secondary" type="button" disabled>Disconnect</button>
+            <label class="inline-label"><input id="manual-show-browser" type="checkbox" /> Show browser</label>
+          </div>
+          <p id="manual-status" class="status">Not connected</p>
+        </div>
+        <div class="chat-window">
+          <div id="manual-transcript" class="transcript tall"></div>
+          <form id="manual-form" class="chat-input-row">
+            <input id="manual-input" type="text" placeholder="Type a message..." disabled />
+            <button type="submit" class="primary" disabled id="btn-manual-send">Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
