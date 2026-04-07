@@ -2,8 +2,28 @@ import { generateText } from "ai";
 import { getOpenAI } from "./aiProvider.js";
 import type { SiteAnalysis, Persona, Dimension, PersonalityProfile, Question } from "../server/testsStore.js";
 
-function attachPersonaIds(personas: Persona[], rows: Array<Record<string, string>>, onLog?: (msg: string) => void): Question[] {
+function closestMatch(input: string, valid: string[]): string {
+  if (!input || !valid.length) return valid[0] || "";
+  const lower = input.trim().toLowerCase();
+  const exact = valid.find((v) => v.toLowerCase() === lower);
+  if (exact) return exact;
+  const partial = valid.find((v) => lower.includes(v.toLowerCase()) || v.toLowerCase().includes(lower));
+  if (partial) return partial;
+  return valid[Math.floor(Math.random() * valid.length)];
+}
+
+function attachPersonaIds(
+  personas: Persona[],
+  rows: Array<Record<string, string>>,
+  dimensions: Dimension[],
+  profiles: PersonalityProfile[],
+  onLog?: (msg: string) => void,
+): Question[] {
   const byName = new Map(personas.map((p) => [p.name.trim().toLowerCase(), p] as const));
+  const dimNames = dimensions.map((d) => d.name);
+  const dimValueMap = new Map(dimensions.map((d) => [d.name.toLowerCase(), d.values.map((v) => v.value)] as const));
+  const profileNames = profiles.map((p) => p.name);
+
   const out: Question[] = [];
   for (const q of rows) {
     const nameRaw = String(q.persona || "").trim();
@@ -12,15 +32,20 @@ function attachPersonaIds(personas: Persona[], rows: Array<Record<string, string
       onLog?.(`Skipping question — unknown tester name "${nameRaw}" (use exact Name from TESTERS list).`);
       continue;
     }
+    const dim = closestMatch(String(q.dimension || ""), dimNames);
+    const dimVals = dimValueMap.get(dim.toLowerCase()) || [];
+    const dimVal = closestMatch(String(q.dimensionValue || ""), dimVals);
+    const profile = closestMatch(String(q.personalityProfile || ""), profileNames);
+
     out.push({
       id: crypto.randomUUID(),
       text: String(q.text || "").trim(),
       type: "structured",
       personaId: p.id,
       persona: p.name,
-      dimension: String(q.dimension || "").trim(),
-      dimensionValue: String(q.dimensionValue || "").trim(),
-      personalityProfile: String(q.personalityProfile || "").trim(),
+      dimension: dim,
+      dimensionValue: dimVal,
+      personalityProfile: profile,
     });
   }
   return out;
@@ -62,21 +87,30 @@ export async function generateQuestions(opts: {
 
   onLog?.(`Generating ${count} questions across testers, dimensions, and profiles...`);
 
-  const testerLines = personas.map((p) => `- Name: "${p.name}" | archetype: ${p.persona} | personality: ${p.personality} | goal: ${p.goal}`).join("\n");
-  const dimList = dimensions.map((d) => `- ${d.name}: ${d.values.map((v) => v.value).join(", ")}`).join("\n");
-  const profileList = profiles.map((p) => `- ${p.name} (${p.tone}, ${p.style})`).join("\n");
+  const testerNames = personas.map((p) => p.name);
+  const testerDetails = personas.map((p) => `  "${p.name}" — ${p.persona}, ${p.personality}, goal: ${p.goal}`).join("\n");
+  const dimDetails = dimensions.map((d) => `  "${d.name}": [${d.values.map((v) => `"${v.value}"`).join(", ")}]`).join("\n");
+  const profileNamesList = profiles.map((p) => `"${p.name}"`).join(", ");
+  const profileDetails = profiles.map((p) => `  "${p.name}" — tone: ${p.tone}, style: ${p.style}`).join("\n");
 
   const ctx = [
+    `=== SITE CONTEXT ===`,
     `Site: ${analysis.siteName} (${analysis.domain})`,
     `Services: ${analysis.services.join(", ")}`,
+    `Audience: ${analysis.targetAudience.join(", ")}`,
     `Common needs: ${analysis.commonUserNeeds.join(", ")}`,
-    `\nTESTERS (the "persona" field in JSON MUST be exactly one of the Name values in quotes):\n${testerLines}`,
-    `\nDIMENSIONS:\n${dimList}`,
-    `\nPROFILES:\n${profileList}`,
+    ``,
+    `=== ALLOWED PERSONA VALUES (pick ONLY from these) ===`,
+    testerDetails,
+    ``,
+    `=== ALLOWED DIMENSION VALUES (pick ONLY from these) ===`,
+    dimDetails,
+    ``,
+    `=== ALLOWED PROFILE VALUES (pick ONLY from these) ===`,
+    profileDetails,
   ].join("\n");
 
   const allQuestions: Question[] = [];
-  /** Per LLM call — large batches exceed output token limits and get truncated. */
   const QUESTIONS_PER_CALL = 22;
   const maxRounds = Math.ceil(count / QUESTIONS_PER_CALL) + 8;
   const seenTexts = new Set<string>();
@@ -90,29 +124,32 @@ export async function generateQuestions(opts: {
     const approxTokens = Math.min(32000, 1400 + batchSize * 520);
     const { text } = await generateText({
       model: getOpenAI(apiKey)(model),
-      system: `Generate EXACTLY ${batchSize} test questions for chatbot testing. Each question MUST be tagged with:
-- "persona": the tester's Name string EXACTLY as given under TESTERS (the quoted Name after "Name: ")
-- "dimension": exact dimension name from DIMENSIONS
-- "dimensionValue": exact value from that dimension's list
-- "personalityProfile": exact profile name from PROFILES
+      system: `You are a creative QA engineer generating diverse test questions for a chatbot.
 
-CRITICAL: You MUST return exactly ${batchSize} questions in the JSON array. Count them before returning.
+TASK: Generate EXACTLY ${batchSize} test questions as a JSON array.
 
-Rules:
-- Questions must be specific to this site's domain and services
-- Distribute evenly across testers, dimensions, and profiles
-- Vary complexity across dimension values
-- Match the personality profile's tone and style
-- No greetings or pleasantries — direct questions only
-${seenTexts.size ? `- Do NOT repeat any of these existing questions:\n${[...seenTexts].slice(0, 40).map((t) => `  • ${t}`).join("\n")}` : ""}
+STRICT METADATA RULES — every question must use ONLY these allowed values:
+• "persona" must be EXACTLY one of: ${testerNames.map((n) => `"${n}"`).join(", ")}
+• "dimension" must be EXACTLY one of the dimension names listed in the context
+• "dimensionValue" must be EXACTLY one of the values belonging to the chosen dimension
+• "personalityProfile" must be EXACTLY one of: ${profileNamesList}
 
-Return a JSON array of exactly ${batchSize} objects:
-[{"text": "the question", "persona": "Exact Tester Name", "dimension": "Dimension Name", "dimensionValue": "Value", "personalityProfile": "Profile Name"}]
+DO NOT invent, rephrase, abbreviate, or modify any metadata value. Copy-paste from the lists above.
 
-Return ONLY valid JSON. No markdown.`,
+CREATIVE QUESTION RULES — make the "text" field rich and diverse:
+• Ground every question in the site's real services, audience, and domain
+• Vary question styles: direct asks, scenario-based ("I'm a patient who…"), comparative ("What's the difference between…"), troubleshooting ("I tried to … but …"), edge cases, multi-part questions
+• Match the persona's background and knowledge level — a medical professional asks differently than a first-time patient
+• Match the personality profile's tone — a frustrated user is terse and demanding, a confused user is uncertain and rambling, a polite professional is structured
+• Cover the full breadth of services, audiences, and user needs — don't cluster around one topic
+• Distribute evenly across all personas, dimensions, and profiles
+${seenTexts.size ? `• Do NOT repeat or closely rephrase any of these existing questions:\n${[...seenTexts].slice(0, 50).map((t) => `  - ${t}`).join("\n")}` : ""}
+
+OUTPUT FORMAT — return ONLY a valid JSON array, no markdown:
+[{"text": "the question", "persona": "Exact Name", "dimension": "Exact Dimension", "dimensionValue": "Exact Value", "personalityProfile": "Exact Profile"}]`,
       prompt: ctx,
       maxOutputTokens: approxTokens,
-      temperature: 0.68 + (round % 5) * 0.04,
+      temperature: 0.72 + (round % 4) * 0.03,
     });
 
     try {
@@ -125,7 +162,7 @@ Return ONLY valid JSON. No markdown.`,
         const qText = String(row.text || "").trim();
         if (!qText || seenTexts.has(qText.toLowerCase())) continue;
         seenTexts.add(qText.toLowerCase());
-        const withIds = attachPersonaIds(personas, [{ ...row, text: qText }], onLog);
+        const withIds = attachPersonaIds(personas, [{ ...row, text: qText }], dimensions, profiles, onLog);
         for (const q of withIds) {
           if (allQuestions.length >= count) break;
           allQuestions.push(q);
