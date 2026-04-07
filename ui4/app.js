@@ -604,7 +604,7 @@ function renderPDModern() {
     <div class="ad-section-title"><span class="ad-section-icon">&#x1F464;</span> Testers</div>
     <div class="pd-controls row">
       <button id="btn-add-persona" class="secondary" type="button">+ Add Tester</button>
-      <label class="inline-label">Count <input id="persona-count" type="number" min="1" max="20" value="${inputMemory.personaCount}" class="small-input" /></label>
+      <label class="inline-label">Count <input id="persona-count" type="number" min="1" value="${inputMemory.personaCount}" class="small-input" /></label>
       <button id="btn-generate" class="primary" type="button">Generate Testers</button>
       <button id="btn-clear-personas" class="secondary" type="button">Clear All</button>
     </div>
@@ -655,7 +655,7 @@ function renderPDClassic() {
     <h3>Testers</h3>
     <div class="pd-controls row">
       <button id="btn-add-persona" class="secondary" type="button">+ Add Tester</button>
-      <label class="inline-label">Count <input id="persona-count" type="number" min="1" max="20" value="${inputMemory.personaCount}" class="small-input" /></label>
+      <label class="inline-label">Count <input id="persona-count" type="number" min="1" value="${inputMemory.personaCount}" class="small-input" /></label>
       <button id="btn-generate" class="primary" type="button">Generate Testers</button>
       <button id="btn-clear-personas" class="secondary" type="button">Clear All</button>
     </div>
@@ -681,7 +681,7 @@ function wirePDEvents() {
   if (genBtn) genBtn.addEventListener("click", () => {
     if (!currentTest || !ws || ws.readyState !== WebSocket.OPEN) return;
     const inp = pdDashboard.querySelector("#persona-count");
-    const count = Math.min(20, Math.max(1, Number(inp?.value) || inputMemory.personaCount));
+    const count = Math.max(1, Number(inp?.value) || inputMemory.personaCount);
     inputMemory.personaCount = count;
     if (inp) inp.value = String(count);
     genBtn.disabled = true;

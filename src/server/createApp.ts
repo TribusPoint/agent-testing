@@ -55,7 +55,7 @@ const WsRunAutoSchema = z.object({
 
 /* ── UI2 WS schemas ── */
 const WsAnalyzeSchema = z.object({ type: z.literal("analyze"), testId: z.string() });
-const WsGenerateSchema = z.object({ type: z.literal("generate_personas"), testId: z.string(), count: z.number().int().min(1).max(20).default(4) });
+const WsGenerateSchema = z.object({ type: z.literal("generate_personas"), testId: z.string(), count: z.number().int().min(1).default(4) });
 const WsManualStartSchema = z.object({ type: z.literal("manual_start"), testId: z.string(), launcherSelector: z.string().optional(), inputSelector: z.string().optional(), headless: z.boolean().optional() });
 const WsManualSendSchema = z.object({ type: z.literal("manual_send"), text: z.string().min(1) });
 const WsManualStopSchema = z.object({ type: z.literal("manual_stop") });
